@@ -11,12 +11,12 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY pyproject.toml README.md ./
-COPY . .
+COPY backend/pyproject.toml backend/README.md /app/backend/
+COPY backend /app/backend
 
 # Upgrade pip and install package without cache to reduce image size
 RUN pip install --upgrade pip setuptools wheel \
-  && pip install --no-cache-dir .
+  && pip install --no-cache-dir /app/backend
 
 # Expose celery CLI (installed via pyproject dependencies)
 # The container image will have `celery` available on PATH after installation
@@ -26,6 +26,7 @@ RUN useradd --create-home --shell /bin/bash appuser \
   && chown -R appuser:appuser /app
 
 USER appuser
+WORKDIR /app
 
 EXPOSE 8000
 CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

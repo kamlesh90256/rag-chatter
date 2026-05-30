@@ -26,14 +26,17 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
           if [ -z "$RAILWAY_TOKEN" ]; then
             echo "RAILWAY_TOKEN not set in secrets; skipping CI deploy."
             exit 0
           fi
-          cd backend
           if [ -n "$RAILWAY_PROJECT_ID" ]; then
-            railway link "$RAILWAY_PROJECT_ID" || true
+            railway link --project "$RAILWAY_PROJECT_ID" || true
+          fi
+          if [ -n "$RAILWAY_SERVICE_ID" ]; then
+            railway link --service "$RAILWAY_SERVICE_ID" || true
           fi
           railway up --ci
