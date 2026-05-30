@@ -22,13 +22,6 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli@latest
 
-      - name: Login to Railway
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          set -euo pipefail
-          railway login --apiKey "$RAILWAY_TOKEN"
-
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -36,11 +29,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "RAILWAY_TOKEN not set in secrets; aborting"
-            exit 1
+            echo "RAILWAY_TOKEN not set in secrets; skipping CI deploy."
+            exit 0
           fi
           cd backend
           if [ -n "$RAILWAY_PROJECT_ID" ]; then
             railway link "$RAILWAY_PROJECT_ID" || true
           fi
-          railway deploy
+          railway up --ci
