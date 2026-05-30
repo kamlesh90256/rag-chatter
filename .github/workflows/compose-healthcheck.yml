@@ -1,0 +1,93 @@
+name: Compose Build & Healthcheck
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and bring up compose stack
+        run: |
+          docker compose build --parallel
+          docker compose up -d
+
+      - name: Wait for backend health
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTAINER=$(docker compose ps -q backend)
+          if [ -z "$CONTAINER" ]; then
+            echo "backend container not found"
+            docker compose ps
+            exit 2
+          fi
+          echo "Waiting for backend ($CONTAINER) to become healthy..."
+          n=0
+          until [ $n -ge 24 ]
+          do
+            STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' $CONTAINER)
+            echo "backend health: $STATUS"
+            if [ "$STATUS" == "healthy" ]; then
+              echo "backend healthy"
+              break
+            fi
+            n=$((n+1))
+            sleep 5
+          done
+          if [ "$STATUS" != "healthy" ]; then
+            echo "backend failed to become healthy"
+            docker compose logs backend || true
+            exit 1
+          fi
+
+      - name: Wait for worker health
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTAINER=$(docker compose ps -q worker)
+          if [ -z "$CONTAINER" ]; then
+            echo "worker container not found"
+            docker compose ps
+            exit 2
+          fi
+          echo "Waiting for worker ($CONTAINER) to become healthy..."
+          n=0
+          until [ $n -ge 24 ]
+          do
+            STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' $CONTAINER)
+            echo "worker health: $STATUS"
+            if [ "$STATUS" == "healthy" ]; then
+              echo "worker healthy"
+              break
+            fi
+            n=$((n+1))
+            sleep 5
+          done
+          if [ "$STATUS" != "healthy" ]; then
+            echo "worker failed to become healthy"
+            docker compose logs worker || true
+            exit 1
+          fi
+
+      - name: Run basic smoke test
+        run: |
+          set -euo pipefail
+          # Basic HTTP check
+          curl -f http://localhost:8000/health
+
+      - name: Tear down compose stack (always)
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "Tearing down compose stack"
+          docker compose down --volumes --remove-orphans || true

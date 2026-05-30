@@ -1,0 +1,77 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DATABASE_URL: sqlite:///./data/app.db
+      CHROMA_PERSIST_DIR: /app/data/chroma
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      RATE_LIMIT_PER_MINUTE: 60
+      REQUEST_TIMEOUT_SECONDS: 120
+      LOG_LEVEL: INFO
+    volumes:
+      - backend_data:/app/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://backend:8000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2.1-bookworm
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower:1.0.0
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:///./data/app.db
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      - redis
+      - backend
+    command: ["celery", "-A", "backend.celery_app", "worker", "--loglevel=info", "-Q", "default"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping --timeout=5 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  backend_data:

@@ -1,0 +1,42 @@
+name: Pin Base Images
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1' # Every Monday at 03:00 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pin-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Make pin script executable
+        run: chmod +x ./scripts/pin_base_images.sh
+
+      - name: Run pin script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash ./scripts/pin_base_images.sh
+
+      - name: Create Pull Request with pinned images
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: pin base images to resolved digests"
+          branch: "pin/base-images-${{ github.run_id }}"
+          title: "chore: pin base images to resolved digests"
+          body: |
+            This PR pins the base images used by the Dockerfiles to their resolved image digests.
+            The change was generated automatically by the scheduled `pin-base-images` workflow.
+          labels: automated,maintenance
+          assignees: ''

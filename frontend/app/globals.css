@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 224 35% 6%;
+  --foreground: 210 40% 98%;
+  --card: 224 28% 10%;
+  --card-foreground: 210 40% 98%;
+  --muted: 223 20% 16%;
+  --muted-foreground: 215 20% 70%;
+  --border: 223 24% 20%;
+  --input: 223 24% 20%;
+  --primary: 167 72% 51%;
+  --primary-foreground: 224 35% 6%;
+  --accent: 214 95% 65%;
+  --accent-foreground: 224 35% 6%;
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 210 40% 98%;
+  --ring: 167 72% 51%;
+}
+
+.light {
+  --background: 210 40% 98%;
+  --foreground: 224 35% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 35% 8%;
+  --muted: 220 18% 94%;
+  --muted-foreground: 222 14% 42%;
+  --border: 217 24% 88%;
+  --input: 217 24% 88%;
+  --primary: 167 72% 38%;
+  --primary-foreground: 210 40% 98%;
+  --accent: 214 95% 52%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 210 40% 98%;
+  --ring: 167 72% 38%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  background: hsl(var(--background));
+}
+
+body {
+  min-height: 100vh;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+::selection {
+  background: rgba(20, 184, 166, 0.25);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
