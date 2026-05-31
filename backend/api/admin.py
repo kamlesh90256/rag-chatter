@@ -56,7 +56,11 @@ def rebuild_vectorstore(
     repo = ChromaRepository()
 
     # Load all chunks from DB
-    chunks = list(session.exec(select(Chunk))).all() if hasattr(session.exec(select(Chunk)), "all") else list(session.exec(select(Chunk)))
+    result = session.exec(select(Chunk))
+    if hasattr(result, "all"):
+        chunks = result.all()
+    else:
+        chunks = list(result)
     texts: list[str] = []
     metadatas: list[dict[str, Any]] = []
     ids: list[str] = []
