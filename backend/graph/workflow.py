@@ -35,13 +35,20 @@ class WorkflowResult:
     context: str
 
 
-@lru_cache(maxsize=1)
-def get_graph():
+@lru_cache(maxsize=4)
+def get_graph(api_key: str | None = None):
+    """Create/return a compiled workflow graph.
+
+    The graph is cached keyed by the provided api_key so that changing
+    OPENAI_API_KEY at runtime (for example via environment variables) will
+    produce a new graph with a fresh LLM client when callers pass the
+    current key.
+    """
     settings = get_settings()
     memory = MemorySaver()
-    llm = ChatOpenAI(
-        model=settings.openai_model, api_key=settings.openai_api_key, temperature=0.2
-    )
+    # Prefer explicit api_key passed in; fall back to settings value
+    key = api_key if api_key is not None else settings.openai_api_key
+    llm = ChatOpenAI(model=settings.openai_model, api_key=key, temperature=0.2)
     retriever = RetrieverService()
 
     def load_memory(state: ChatState) -> ChatState:
@@ -142,7 +149,9 @@ def _load_conversation_memory(thread_id: str, video_ids: list[str] | None) -> st
 def run_workflow(
     question: str, thread_id: str, video_ids: list[str] | None = None
 ) -> WorkflowResult:
-    graph = get_graph()
+    # Pass current API key so the cached graph reflects the latest credentials.
+    settings = get_settings()
+    graph = get_graph(settings.openai_api_key)
     state = graph.invoke(
         {"question": question, "thread_id": thread_id, "video_ids": video_ids},
         config={"configurable": {"thread_id": thread_id}},

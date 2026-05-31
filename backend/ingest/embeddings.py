@@ -35,17 +35,24 @@ def _fallback_embedding(text: str, dim: int = 1536) -> List[float]:
     return out[:dim]
 
 
-@lru_cache(maxsize=1)
-def get_embeddings_client() -> OpenAIEmbeddings:
+@lru_cache(maxsize=4)
+def get_embeddings_client(api_key: str | None = None) -> OpenAIEmbeddings:
+    """Return an OpenAIEmbeddings client cached by api_key.
+
+    Caching is keyed by api_key so that updating OPENAI_API_KEY at runtime
+    (without restarting the process) will produce a new client when callers
+    pass the current key.
+    """
     settings = get_settings()
-    return OpenAIEmbeddings(
-        model=settings.embedding_model, api_key=settings.openai_api_key
-    )
+    key = api_key if api_key is not None else settings.openai_api_key
+    return OpenAIEmbeddings(model=settings.embedding_model, api_key=key)
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
     try:
-        client = get_embeddings_client()
+        from backend.utils.settings import get_settings as _get_settings
+
+        client = get_embeddings_client(_get_settings().openai_api_key)
         return client.embed_documents(texts)
     except Exception:
         # fallback to deterministic local embeddings
@@ -55,7 +62,9 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
 def embed_query(text: str) -> list[float]:
     try:
-        client = get_embeddings_client()
+        from backend.utils.settings import get_settings as _get_settings
+
+        client = get_embeddings_client(_get_settings().openai_api_key)
         return client.embed_query(text)
     except Exception:
         return _fallback_embedding(text)
