@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "frontend/package.json", "use": "@vercel/next" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/backend/api/$1" }
+  ],
+  "env": {
+    "NEXT_PUBLIC_API_BASE_URL": "https://$VERCEL_URL",
+    "OPENAI_API_KEY": "@openai_api_key"
+  }
+}

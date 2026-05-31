@@ -1,0 +1,11 @@
+{
+  "redis": {
+    "open": true,
+    "response": "+PONG\r\n"
+  },
+  "flower": {
+    "open": true,
+    "status": 200,
+    "body": "OK"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "health": {
+    "status": null,
+    "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+  },
+  "frontend_tcp": {
+    "host": "localhost",
+    "port": 3000,
+    "open": false,
+    "error": "[WinError 10061] No connection could be made because the target machine actively refused it"
+  },
+  "metadata_before": {
+    "status": null,
+    "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "open": false,
+    "error": "[WinError 10061] No connection could be made because the target machine actively refused it"
+  },
+  "flower": {
+    "host": "localhost",
+    "port": 5555,
+    "open": false,
+    "error": "[WinError 10061] No connection could be made because the target machine actively refused it"
+  },
+  "sources_before": {
+    "status": null,
+    "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+  },
+  "ingest_request": {
+    "youtube_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "instagram_url": "https://www.youtube.com/watch?v=3JZ_D3ELwOQ"
+  },
+  "ingest_response": {
+    "status": null,
+    "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+  },
+  "metadata_after": {
+    "status": null,
+    "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+  },
+  "sources_after": {
+    "status": null,
+    "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+  },
+  "chat_stream": {
+    "error": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /chat (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it\"))"
+  }
+}
