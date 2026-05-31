@@ -19,6 +19,7 @@ def init_db() -> None:
     from backend.models.chunk import Chunk  # noqa: F401
     from backend.models.transcript import Transcript  # noqa: F401
     from backend.models.video import Video  # noqa: F401
+    from backend.models.embedding_cache import EmbeddingCache  # noqa: F401
 
     SQLModel.metadata.create_all(engine)
 
