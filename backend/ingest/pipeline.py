@@ -130,11 +130,16 @@ class IngestionService:
         self.session.add(transcript)
         self.session.commit()
         self.session.refresh(transcript)
-        # Only attempt chunking/embeddings if we have transcript text; otherwise skip gracefully.
+        # If transcript text is missing, fall back to metadata (description/title)
+        # so downstream chunking and embeddings still run and populate the vectorstore.
         if transcript.text:
             chunks = self._chunk_and_store(video, transcript.text)
         else:
-            chunks = []
+            fallback_text = metadata.get("description") or metadata.get("title") or ""
+            if fallback_text:
+                chunks = self._chunk_and_store(video, fallback_text)
+            else:
+                chunks = []
         first_five_seconds = transcript.text[:300]
         hook = analyze_hook(first_five_seconds, title=video.title)
         return {
