@@ -1,0 +1,6 @@
+{
+  "name": "Build and Push Backend Image",
+  "status": "completed",
+  "conclusion": "failure",
+  "logs_url": "https://api.github.com/repos/kamlesh90256/rag-chatter/actions/runs/26711895310/logs"
+}
