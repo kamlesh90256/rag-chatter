@@ -37,8 +37,21 @@ class IngestionService:
         self.vectorstore = ChromaRepository()
 
     def ingest_pair(self, youtube_url: str, instagram_url: str) -> dict[str, Any]:
-        video_a = self.ingest_single(youtube_url)
-        video_b = self.ingest_single(instagram_url)
+        # In production some sources may fail (geo-restrictions, removed videos).
+        # Be resilient: attempt each ingest and on failure create a placeholder
+        # video record so the rest of the pipeline can continue.
+        try:
+            video_a = self.ingest_single(youtube_url)
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger = logging.getLogger("rag_platform.ingest")
+            logger.exception("Failed to ingest video A (%s): %s", youtube_url, exc)
+            video_a = self._create_placeholder_video(youtube_url, platform="youtube", error=str(exc))
+        try:
+            video_b = self.ingest_single(instagram_url)
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger = logging.getLogger("rag_platform.ingest")
+            logger.exception("Failed to ingest video B (%s): %s", instagram_url, exc)
+            video_b = self._create_placeholder_video(instagram_url, platform="instagram", error=str(exc))
         # ensure dumped video dicts contain numeric metrics for comparison
         va = video_a["video"].model_dump()
         vb = video_b["video"].model_dump()
@@ -78,6 +91,33 @@ class IngestionService:
             },
             "analysis_id": analysis.id,
         }
+
+    def _create_placeholder_video(self, url: str, platform: str, error: str | None = None) -> dict[str, Any]:
+        # Create a minimal Video record to ensure downstream flows have an ID to reference.
+        metadata = extract_metadata(url, platform) if url else {}
+        video_id = _canonical_video_id(platform, url)
+        video = Video(
+            id=video_id,
+            platform=platform,
+            url=url,
+            title=metadata.get("title", "Unavailable video"),
+            creator=metadata.get("creator", "Unknown"),
+            views=0,
+            likes=0,
+            comments=0,
+            follower_count=None,
+        )
+        video.set_metadata(metadata.get("raw") or {})
+        video.error_message = error
+        self.session.add(video)
+        self.session.commit()
+        self.session.refresh(video)
+        # create an empty transcript record to keep schema expectations
+        transcript = Transcript(video_id=video.id, source_type="unavailable", language="en", text="", is_fallback=True)
+        self.session.add(transcript)
+        self.session.commit()
+        self.session.refresh(transcript)
+        return {"video": video, "transcript": transcript, "chunks": [], "hook_analysis": {}}
 
     def ingest_single(self, url: str) -> dict[str, Any]:
         from backend.ingest.validator import validate_video_url
