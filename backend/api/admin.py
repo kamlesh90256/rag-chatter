@@ -39,21 +39,27 @@ def rebuild_vectorstore(
         generated_secret = f"{uuid.uuid4()}-{randint(0,99999)}"
 
     # Initialize repository and wipe existing collection if present
-    repo = ChromaRepository()
+    from backend.vectorstore.factory import get_repository
+
+    repo = get_repository()
+    # Attempt to delete/recreate collection if repository supports it
     try:
-        try:
-            repo.client.delete_collection(name="creator_video_chunks")
-        except Exception:
-            # Some chroma versions expose different APIs; attempt to clear collection
+        if hasattr(repo, "client") and hasattr(repo.client, "delete_collection"):
+            try:
+                repo.client.delete_collection(name="video_chunks")
+            except Exception:
+                # non-fatal
+                pass
+        elif hasattr(repo, "collection") and hasattr(repo.collection, "delete"):
             try:
                 repo.collection.delete()
             except Exception:
-                logger.exception("Failed to delete existing chroma collection, continuing to recreate")
+                pass
     except Exception:
-        logger.exception("Error while attempting to remove existing collection")
+        logger.exception("Error while attempting to remove existing vectorstore collection")
 
     # Recreate repo/collection to ensure clean state
-    repo = ChromaRepository()
+    repo = get_repository()
 
     # Load all chunks from DB
     result = session.exec(select(Chunk))

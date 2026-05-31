@@ -21,7 +21,7 @@ from backend.models.analysis import Analysis
 from backend.models.chunk import Chunk
 from backend.models.transcript import Transcript
 from backend.models.video import Video
-from backend.vectorstore.chroma import ChromaRepository
+from backend.vectorstore.factory import get_repository
 
 
 @dataclass
@@ -35,7 +35,7 @@ class IngestedVideo:
 class IngestionService:
     def __init__(self, session: Session) -> None:
         self.session = session
-        self.vectorstore = ChromaRepository()
+        self.vectorstore = get_repository()
 
     def ingest_pair(self, youtube_url: str, instagram_url: str) -> dict[str, Any]:
         # In production some sources may fail (geo-restrictions, removed videos).

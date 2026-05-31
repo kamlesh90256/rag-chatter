@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from backend.ingest.embeddings import embed_query
-from backend.vectorstore.chroma import ChromaRepository
+from backend.vectorstore.factory import get_repository
 
 
 class RetrieverService:
     def __init__(self) -> None:
-        self.vectorstore = ChromaRepository()
+        self.vectorstore = get_repository()
 
     def retrieve(
         self, question: str, *, video_ids: list[str] | None = None, k: int = 6

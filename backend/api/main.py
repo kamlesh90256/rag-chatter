@@ -126,9 +126,9 @@ def sources(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     from backend.graph.workflow import _load_conversation_memory
-    from backend.vectorstore.chroma import ChromaRepository
+    from backend.vectorstore.factory import get_repository
 
-    vectorstore = ChromaRepository()
+    vectorstore = get_repository()
     resolved_ids = [item for item in (video_ids.split(",") if video_ids else [video_id] if video_id else []) if item]
     chunks = vectorstore.all_sources(video_ids=resolved_ids or None)
     if thread_id:
