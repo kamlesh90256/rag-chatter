@@ -102,7 +102,11 @@ def chat(request: ChatRequest, session: Session = Depends(get_session), _: None 
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        import traceback
+
+        tb = traceback.format_exc()
+        # Return richer error detail to assist debugging in production (temporary)
+        raise HTTPException(status_code=500, detail={"error": str(exc), "traceback": tb}) from exc
 
 
 @app.get("/metadata")
