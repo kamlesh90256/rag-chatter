@@ -61,9 +61,6 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         keys = [hashlib.sha256(t.encode("utf-8")).hexdigest() for t in texts]
         cached: dict[str, list[float]] = {}
         with Session(engine) as session:
-            rows = session.exec(
-                select(EmbeddingCache) if False else None
-            )
             # Fallback: do per-key lookup to avoid complex SQL for IN clauses in SQLModel
             for k in keys:
                 item = session.get(EmbeddingCache, k)
