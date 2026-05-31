@@ -21,7 +21,14 @@ class Settings(BaseSettings):
     chroma_persist_dir: Path = Field(default=Path("./data/chroma"))
     rate_limit_per_minute: int = 60
     request_timeout_seconds: int = 120
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    cors_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ]
+    )
     max_chat_history_turns: int = 12
     chunk_size: int = 800
     chunk_size: int = 1000

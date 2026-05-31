@@ -38,3 +38,23 @@ class Video(SQLModel, table=True):
         import json
 
         self.metadata_json = json.dumps(payload)
+
+    def model_dump(self, *args, **kwargs) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "platform": self.platform,
+            "url": self.url,
+            "title": self.title,
+            "creator": self.creator,
+            "views": self.views,
+            "likes": self.likes,
+            "comments": self.comments,
+            "upload_date": self.upload_date.isoformat() if self.upload_date else None,
+            "duration_seconds": self.duration_seconds,
+            "hashtags_json": self.hashtags_json,
+            "follower_count": self.follower_count,
+            "metadata_json": self.metadata_json,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "error_message": self.error_message,
+        }

@@ -56,30 +56,40 @@ def calculate_engagement_rate(likes: int, comments: int, views: int) -> float:
 def build_comparison_table(
     video_a: dict[str, Any], video_b: dict[str, Any]
 ) -> EngagementResult:
+    likes_a = int(video_a.get("likes") or 0)
+    comments_a = int(video_a.get("comments") or 0)
+    views_a = int(video_a.get("views") or 0)
+    likes_b = int(video_b.get("likes") or 0)
+    comments_b = int(video_b.get("comments") or 0)
+    views_b = int(video_b.get("views") or 0)
     engagement_a = calculate_engagement_rate(
-        video_a["likes"], video_a["comments"], video_a["views"]
+        likes_a,
+        comments_a,
+        views_a,
     )
     engagement_b = calculate_engagement_rate(
-        video_b["likes"], video_b["comments"], video_b["views"]
+        likes_b,
+        comments_b,
+        views_b,
     )
-    winner = video_a["title"] if engagement_a >= engagement_b else video_b["title"]
+    winner = str(video_a.get("title") or "Video A") if engagement_a >= engagement_b else str(video_b.get("title") or "Video B")
     return EngagementResult(
         engagement_rate=max(engagement_a, engagement_b),
         comparison_table=[
             {
                 "metric": "Views",
-                "video_a": video_a["views"],
-                "video_b": video_b["views"],
+                "video_a": views_a,
+                "video_b": views_b,
             },
             {
                 "metric": "Likes",
-                "video_a": video_a["likes"],
-                "video_b": video_b["likes"],
+                "video_a": likes_a,
+                "video_b": likes_b,
             },
             {
                 "metric": "Comments",
-                "video_a": video_a["comments"],
-                "video_b": video_b["comments"],
+                "video_a": comments_a,
+                "video_b": comments_b,
             },
             {
                 "metric": "Engagement Rate %",

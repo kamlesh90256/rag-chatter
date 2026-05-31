@@ -5,6 +5,7 @@ import logging
 import hashlib
 from typing import Any
 
+from sqlalchemy import delete
 from sqlmodel import Session, select
 
 from backend.ingest.analysis import (
@@ -54,8 +55,8 @@ class IngestionService:
             logger.exception("Failed to ingest video B (%s): %s", instagram_url, exc)
             video_b = self._create_placeholder_video(instagram_url, platform="instagram", error=str(exc))
         # ensure dumped video dicts contain numeric metrics for comparison
-        va = video_a["video"].model_dump()
-        vb = video_b["video"].model_dump()
+        va = _serialize_video(video_a["video"])
+        vb = _serialize_video(video_b["video"])
         for k in ("likes", "comments", "views"):
             va.setdefault(k, 0)
             vb.setdefault(k, 0)
@@ -84,7 +85,7 @@ class IngestionService:
         self.session.commit()
         self.session.refresh(analysis)
         return {
-            "videos": [video_a["video"].model_dump(), video_b["video"].model_dump()],
+            "videos": [va, vb],
             "comparison": comparison,
             "hook_analysis": {
                 "video_a": video_a["hook_analysis"],
@@ -152,24 +153,46 @@ class IngestionService:
             text=transcript_text,
             is_fallback=transcript_is_fallback,
         )
-        video = Video(
-            id=video_id,
-            platform=platform,
-            url=url,
-            title=metadata.get("title", "Untitled video"),
-            creator=metadata.get("creator", "Unknown creator"),
-            views=int(metadata.get("views") or 0),
-            likes=int(metadata.get("likes") or 0),
-            comments=int(metadata.get("comments") or 0),
-            upload_date=metadata.get("upload_date"),
-            duration_seconds=int(metadata.get("duration_seconds") or 0) or None,
-            follower_count=metadata.get("follower_count"),
-        )
-        video.set_hashtags(metadata.get("hashtags") or [])
-        video.set_metadata(metadata.get("raw") or {})
-        self.session.add(video)
+        existing_video = self.session.get(Video, video_id)
+        if existing_video:
+            video = existing_video
+            video.platform = platform
+            video.url = url
+            video.title = metadata.get("title", "Untitled video")
+            video.creator = metadata.get("creator", "Unknown creator")
+            video.views = int(metadata.get("views") or 0)
+            video.likes = int(metadata.get("likes") or 0)
+            video.comments = int(metadata.get("comments") or 0)
+            video.upload_date = metadata.get("upload_date")
+            video.duration_seconds = int(metadata.get("duration_seconds") or 0) or None
+            video.follower_count = metadata.get("follower_count")
+            video.set_hashtags(metadata.get("hashtags") or [])
+            video.set_metadata(metadata.get("raw") or {})
+            video.error_message = None
+        else:
+            video = Video(
+                id=video_id,
+                platform=platform,
+                url=url,
+                title=metadata.get("title", "Untitled video"),
+                creator=metadata.get("creator", "Unknown creator"),
+                views=int(metadata.get("views") or 0),
+                likes=int(metadata.get("likes") or 0),
+                comments=int(metadata.get("comments") or 0),
+                upload_date=metadata.get("upload_date"),
+                duration_seconds=int(metadata.get("duration_seconds") or 0) or None,
+                follower_count=metadata.get("follower_count"),
+            )
+            video.set_hashtags(metadata.get("hashtags") or [])
+            video.set_metadata(metadata.get("raw") or {})
+            self.session.add(video)
         self.session.commit()
         self.session.refresh(video)
+
+        # Remove prior child rows for idempotent re-ingest of the same video.
+        self.session.exec(delete(Transcript).where(Transcript.video_id == video.id))
+        self.session.exec(delete(Chunk).where(Chunk.video_id == video.id))
+        self.session.commit()
 
         transcript.video_id = video.id
         self.session.add(transcript)
@@ -228,6 +251,11 @@ class IngestionService:
         chunks: list[Chunk] = []
         metadatas: list[dict[str, Any]] = []
         vector_ids: list[str] = []
+        # compute synthetic per-chunk timestamps from video.duration_seconds when available
+        duration = float(video.duration_seconds) if video.duration_seconds else 60.0
+        total = len(chunk_texts) or 1
+        per = duration / total if total else duration
+
         for index, chunk_text in enumerate(chunk_texts, start=1):
             metadata = {
                 "video_id": video.id,
@@ -236,6 +264,11 @@ class IngestionService:
                 "title": video.title,
                 "url": video.url,
             }
+            # add timestamp metadata for chunks generated from raw text
+            start_ts = round((index - 1) * per, 3)
+            end_ts = round(index * per, 3)
+            metadata["timestamp_start"] = start_ts
+            metadata["timestamp_end"] = end_ts
             metadatas.append(metadata)
             vector_ids.append(f"{video.id}-{index}")
             chunk = Chunk(
@@ -247,6 +280,8 @@ class IngestionService:
                 title=video.title,
                 url=video.url,
                 metadata_json=model_dump_json(metadata),
+                timestamp_start=start_ts,
+                timestamp_end=end_ts,
                 vector_id=vector_ids[-1],
             )
             chunks.append(chunk)
@@ -329,3 +364,23 @@ def _canonical_video_id(platform: str, url: str) -> str:
     normalized = f"{platform}:{url.strip()}"
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     return digest[:24]
+
+
+def _serialize_video(video: Video) -> dict[str, Any]:
+    return {
+        "id": video.id,
+        "platform": video.platform,
+        "url": video.url,
+        "title": video.title,
+        "creator": video.creator,
+        "views": video.views,
+        "likes": video.likes,
+        "comments": video.comments,
+        "upload_date": video.upload_date.isoformat() if video.upload_date else None,
+        "duration_seconds": video.duration_seconds,
+        "hashtags": video.hashtags,
+        "follower_count": video.follower_count,
+        "metadata_json": video.metadata_json,
+        "error_message": video.error_message,
+        "created_at": video.created_at.isoformat(),
+    }

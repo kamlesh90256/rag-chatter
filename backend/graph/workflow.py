@@ -17,6 +17,37 @@ from backend.rag.retrieval import RetrieverService
 from backend.utils.settings import get_settings
 
 
+THREAD_STATE_CACHE: dict[str, dict[str, Any]] = {}
+
+
+class _GraphWrapper:
+    def __init__(self, graph):
+        self._graph = graph
+
+    def invoke(self, *args, **kwargs):
+        state = self._graph.invoke(*args, **kwargs)
+        thread_id = None
+        if args and isinstance(args[0], dict):
+            thread_id = args[0].get("thread_id")
+        if thread_id is None:
+            thread_id = kwargs.get("config", {}).get("configurable", {}).get("thread_id")
+        if thread_id:
+            THREAD_STATE_CACHE[str(thread_id)] = dict(state)
+        return state
+
+    def get_state(self, config):
+        thread_id = config.get("configurable", {}).get("thread_id")
+
+        class Snapshot:
+            def __init__(self, values):
+                self.values = values
+
+        return Snapshot(THREAD_STATE_CACHE.get(str(thread_id), {}))
+
+    def __getattr__(self, name):
+        return getattr(self._graph, name)
+
+
 class ChatState(TypedDict, total=False):
     question: str
     thread_id: str
@@ -73,6 +104,8 @@ def get_graph(api_key: str | None = None):
                 "creator": chunk.get("metadata", {}).get("creator", "Unknown creator"),
                 "chunk_id": chunk.get("metadata", {}).get("chunk_id"),
                 "url": chunk.get("metadata", {}).get("url"),
+                "timestamp_start": chunk.get("metadata", {}).get("timestamp_start"),
+                "timestamp_end": chunk.get("metadata", {}).get("timestamp_end"),
             }
             for chunk in state.get("retrieved_chunks", [])
         ]
@@ -86,7 +119,7 @@ def get_graph(api_key: str | None = None):
         )
         try:
             response = llm.invoke(messages)
-            return {"answer": response.content}
+            return {"question": state["question"], "answer": response.content}
         except Exception:
             # Fallback: build a deterministic answer from the provided context
             ctx = state.get("context", "")
@@ -104,7 +137,7 @@ def get_graph(api_key: str | None = None):
             answer = (
                 f"(fallback) Based on retrieved context:\n{summary}\n\nCitations:\n{citation_list}"
             )
-            return {"answer": answer}
+            return {"question": state["question"], "answer": answer}
 
     graph = StateGraph(ChatState)
     graph.add_node("load_memory", load_memory)
@@ -116,7 +149,7 @@ def get_graph(api_key: str | None = None):
     graph.add_edge("retrieve", "build")
     graph.add_edge("build", "answer")
     graph.add_edge("answer", END)
-    return graph.compile(checkpointer=memory)
+    return _GraphWrapper(graph.compile(checkpointer=memory))
 
 
 def _load_conversation_memory(thread_id: str, video_ids: list[str] | None) -> str:
@@ -141,6 +174,14 @@ def _load_conversation_memory(thread_id: str, video_ids: list[str] | None) -> st
             "Relevant videos: "
             + ", ".join(f"{video.title} by {video.creator}" for video in videos)
         )
+    cached_state = THREAD_STATE_CACHE.get(thread_id)
+    if cached_state:
+        previous_question = cached_state.get("question")
+        previous_answer = cached_state.get("answer")
+        if previous_question:
+            transcript_lines.append(f"Previous question: {previous_question}")
+        if previous_answer:
+            transcript_lines.append(f"Previous answer: {previous_answer}")
     if video_ids:
         transcript_lines.append("Requested video_ids: " + ", ".join(video_ids))
     return "\n".join(transcript_lines)
