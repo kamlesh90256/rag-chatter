@@ -20,6 +20,7 @@ from backend.utils.database import get_session, init_db
 from backend.utils.logging import RequestLoggingMiddleware, configure_logging
 from backend.utils.security import rate_limit
 from backend.utils.settings import get_settings
+from backend.api.admin import router as admin_router
 
 settings = get_settings()
 configure_logging()
@@ -42,6 +43,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Admin routes (protected by ADMIN_SECRET)
+app.include_router(admin_router, prefix="/admin")
 
 
 @app.on_event("startup")

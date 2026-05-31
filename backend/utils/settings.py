@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     chunk_size: int = 800
     chunk_overlap: int = 100
     retriever_k: int = 6
+    admin_secret: str | None = None
 
     @property
     def sqlite_path(self) -> Path | None:
