@@ -24,7 +24,18 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     max_chat_history_turns: int = 12
     chunk_size: int = 800
-    chunk_overlap: int = 100
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    # Vector DB selection
+    use_qdrant: bool = False
+    qdrant_url: str | None = None
+    qdrant_api_key: str | None = None
+    # Background worker / queue
+    redis_url: str | None = None
+    celery_broker_url: str | None = None
+    # Embedding model
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dim: int = 1536
     retriever_k: int = 6
     admin_secret: str | None = None
 

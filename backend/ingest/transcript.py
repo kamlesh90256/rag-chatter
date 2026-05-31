@@ -42,8 +42,10 @@ def _extract_youtube_transcript(url: str) -> dict[str, Any]:
     try:
         items = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
         text = " ".join(item["text"] for item in items)
+        # return both the full text and itemized segments (with start/duration)
         return {
             "text": text,
+            "items": items,
             "source_type": "youtube-transcript-api",
             "language": "en",
             "is_fallback": False,

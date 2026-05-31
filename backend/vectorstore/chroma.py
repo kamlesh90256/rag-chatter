@@ -16,8 +16,9 @@ class ChromaRepository:
             path=str(settings.chroma_persist_dir),
             settings=ChromaSettings(anonymized_telemetry=False),
         )
+        # Use unified collection name to match Qdrant adapter
         self.collection = self.client.get_or_create_collection(
-            name="creator_video_chunks",
+            name="video_chunks",
             metadata={"hnsw:space": "cosine"},
         )
 

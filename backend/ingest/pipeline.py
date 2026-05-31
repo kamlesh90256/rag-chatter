@@ -175,16 +175,30 @@ class IngestionService:
         self.session.add(transcript)
         self.session.commit()
         self.session.refresh(transcript)
-        # If transcript text is missing, fall back to metadata (description/title)
-        # so downstream chunking and embeddings still run and populate the vectorstore.
-        if transcript.text:
-            chunks = self._chunk_and_store(video, transcript.text)
+        # If transcript contains itemized segments, use timestamp-aware chunking.
+        transcript_items = None
+        try:
+            transcript_items = transcript_payload.get("items") if "transcript_payload" in locals() else None
+        except Exception:
+            transcript_items = None
+
+        if transcript_items:
+            # itemized transcript: use timestamp-aware chunking
+            from backend.ingest.chunking import chunk_transcript_items
+
+            item_chunks = chunk_transcript_items(transcript_items)
+            chunks = self._chunk_and_store_with_timestamps(video, item_chunks)
         else:
-            fallback_text = metadata.get("description") or metadata.get("title") or ""
-            if fallback_text:
-                chunks = self._chunk_and_store(video, fallback_text)
+            # If transcript text is missing, fall back to metadata (description/title)
+            # so downstream chunking and embeddings still run and populate the vectorstore.
+            if transcript.text:
+                chunks = self._chunk_and_store(video, transcript.text)
             else:
-                chunks = []
+                fallback_text = metadata.get("description") or metadata.get("title") or ""
+                if fallback_text:
+                    chunks = self._chunk_and_store(video, fallback_text)
+                else:
+                    chunks = []
         first_five_seconds = transcript.text[:300]
         hook = analyze_hook(first_five_seconds, title=video.title)
         return {
@@ -250,6 +264,58 @@ class IngestionService:
             except Exception:
                 # swallow vectorstore errors to keep ingestion resilient
                 pass
+        return chunks
+
+    def _chunk_and_store_with_timestamps(self, video: Video, item_chunks: list[dict[str, Any]]) -> list[Chunk]:
+        """Store chunks produced by chunk_transcript_items which include timestamps."""
+        texts = [c["text"] for c in item_chunks]
+        timestamps = [(c.get("timestamp_start"), c.get("timestamp_end")) for c in item_chunks]
+
+        try:
+            embeddings = embed_texts(texts)
+        except Exception:
+            embeddings = []
+
+        chunks: list[Chunk] = []
+        metadatas: list[dict[str, Any]] = []
+        vector_ids: list[str] = []
+        for index, (chunk_obj, (start, end)) in enumerate(zip(item_chunks, timestamps), start=1):
+            chunk_text = chunk_obj.get("text", "")
+            metadata = {
+                "video_id": video.id,
+                "chunk_id": index,
+                "creator": video.creator,
+                "title": video.title,
+                "url": video.url,
+                "timestamp_start": start,
+                "timestamp_end": end,
+            }
+            metadatas.append(metadata)
+            vector_id = f"{video.id}-{index}"
+            vector_ids.append(vector_id)
+            chunk = Chunk(
+                id=vector_id,
+                video_id=video.id,
+                chunk_id=index,
+                text=chunk_text,
+                creator=video.creator,
+                title=video.title,
+                url=video.url,
+                metadata_json=model_dump_json(metadata),
+                vector_id=vector_id,
+                timestamp_start=start,
+                timestamp_end=end,
+            )
+            chunks.append(chunk)
+            self.session.add(chunk)
+        self.session.commit()
+
+        if embeddings and len(embeddings) == len(texts):
+            try:
+                self.vectorstore.upsert_chunks(texts=texts, embeddings=embeddings, metadatas=metadatas, ids=vector_ids)
+            except Exception:
+                pass
+
         return chunks
 
     def get_videos(self) -> list[Video]:

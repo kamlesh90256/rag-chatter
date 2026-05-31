@@ -14,4 +14,6 @@ class Chunk(SQLModel, table=True):
     url: str
     metadata_json: str = "{}"
     vector_id: str | None = None
+    timestamp_start: float | None = None
+    timestamp_end: float | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
