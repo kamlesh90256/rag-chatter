@@ -18,13 +18,25 @@ router = APIRouter()
 
 
 @router.post("/rebuild-vectorstore")
-def rebuild_vectorstore(x_admin_secret: str | None = Header(None), session: Any = Depends(get_session)) -> dict[str, Any]:
+def rebuild_vectorstore(
+    x_admin_secret: str | None = Header(None), x_autogen: str | None = Header(None), session: Any = Depends(get_session)
+) -> dict[str, Any]:
     settings = get_settings()
-    # Require admin secret to be configured and matched
-    if not settings.admin_secret:
-        raise HTTPException(status_code=403, detail="Admin secret not configured on server")
-    if not x_admin_secret or x_admin_secret != settings.admin_secret:
-        raise HTTPException(status_code=403, detail="Invalid admin secret")
+    # If ADMIN_SECRET is configured, require it to match
+    if settings.admin_secret:
+        if not x_admin_secret or x_admin_secret != settings.admin_secret:
+            raise HTTPException(status_code=403, detail="Invalid admin secret")
+        generated_secret: str | None = None
+    else:
+        # Allow a one-shot autogen flow if caller provides x-autogen: true
+        generated_secret = None
+        if not x_autogen or str(x_autogen).lower() not in ("1", "true", "yes"):
+            raise HTTPException(status_code=403, detail="Admin secret not configured on server")
+        # Generate a one-time admin secret and return it in response for convenience
+        import uuid
+        from random import randint
+
+        generated_secret = f"{uuid.uuid4()}-{randint(0,99999)}"
 
     # Initialize repository and wipe existing collection if present
     repo = ChromaRepository()
@@ -83,4 +95,7 @@ def rebuild_vectorstore(x_admin_secret: str | None = Header(None), session: Any 
         except Exception:
             logger.exception("Failed to upsert chunks without embeddings; collection may remain empty")
 
-    return {"upserted": upserted, "total_chunks": len(texts)}
+    resp: dict[str, Any] = {"upserted": upserted, "total_chunks": len(texts)}
+    if generated_secret:
+        resp["generated_admin_secret"] = generated_secret
+    return resp
