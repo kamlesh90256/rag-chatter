@@ -46,10 +46,13 @@ export type HookAnalysis = {
 };
 
 export type ChatCitation = {
+  video_id?: string;
   title: string;
   creator: string;
   chunk_id: number | null;
   url: string | null;
+  timestamp_start?: number | null;
+  timestamp_end?: number | null;
 };
 
 export type ChatResponse = {

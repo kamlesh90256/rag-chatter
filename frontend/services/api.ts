@@ -19,6 +19,11 @@ export async function ingestVideos(payload: { youtube_url: string; instagram_url
   return parseResponse<IngestResponse>(response);
 }
 
+export async function getIngestStatus(jobId: string) {
+  const response = await fetch(`${apiBaseUrl}/ingest/status/${jobId}`, { cache: "no-store" });
+  return parseResponse<{ id: string; state: string; status: any }>(response);
+}
+
 export async function getMetadata(videoId?: string) {
   const url = new URL(`${apiBaseUrl}/metadata`);
   if (videoId) url.searchParams.set("video_id", videoId);
@@ -73,8 +78,23 @@ export async function streamChat(
           return;
         }
         try {
-          onMessage(JSON.parse(data));
-        } catch {
+          const parsed = JSON.parse(data);
+          // Map server-side event types to frontend-friendly shape
+          if (parsed.type === "retrieved") {
+            onMessage({ citations: parsed.citations });
+          } else if (parsed.type === "partial") {
+            onMessage({ answer: parsed.text });
+          } else if (parsed.type === "done") {
+            onMessage({ answer: parsed.answer, citations: parsed.citations, done: true });
+            return;
+          } else if (parsed.type === "error") {
+            throw new Error(parsed.error || "Streaming error");
+          } else {
+            // fallback: pass entire payload
+            onMessage(parsed);
+          }
+        } catch (err) {
+          // if JSON.parse fails, treat as partial text
           onMessage({ answer: data });
         }
       }

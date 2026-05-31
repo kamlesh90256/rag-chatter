@@ -75,9 +75,13 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
         if missing_idx:
             # call embeddings API for missing texts
-            client = get_embeddings_client(_get_settings().openai_api_key)
+            client = get_embeddings_client()
             missing_texts = [texts[i] for i in missing_idx]
+            import time
+            t0 = time.time()
             produced = client.embed_documents(missing_texts)
+            from backend.metrics import observe_embedding
+            observe_embedding(time.time() - t0)
             # store produced embeddings in DB
             try:
                 import json
@@ -110,42 +114,60 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         try:
             from backend.utils.settings import get_settings as _get_settings
 
-            client = get_embeddings_client(_get_settings().openai_api_key)
-            return client.embed_documents(texts)
+            client = get_embeddings_client()
+            import time
+            t0 = time.time()
+            res = client.embed_documents(texts)
+            from backend.metrics import observe_embedding
+            observe_embedding(time.time() - t0)
+            return res
         except Exception:
             dim = 1536
             return [_fallback_embedding(t, dim=dim) for t in texts]
 
 
 def embed_query(text: str) -> list[float]:
+    # Try DB-backed cache but tolerate any DB/import errors and proceed
     try:
-        # Try cache first
         import json
         from sqlmodel import Session
 
         from backend.models.embedding_cache import EmbeddingCache
         from backend.utils.database import engine
-        from backend.utils.settings import get_settings as _get_settings
 
         key = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        with Session(engine) as session:
-            item = session.get(EmbeddingCache, key)
-            if item:
-                try:
-                    return json.loads(item.vector_json)
-                except Exception:
-                    pass
-
-        client = get_embeddings_client(_get_settings().openai_api_key)
-        vec = client.embed_query(text)
         try:
             with Session(engine) as session:
-                import json
-
-                session.add(EmbeddingCache(key=key, vector_json=json.dumps(vec)))
-                session.commit()
+                item = session.get(EmbeddingCache, key)
+                if item:
+                    try:
+                        return json.loads(item.vector_json)
+                    except Exception:
+                        pass
         except Exception:
+            # swallow DB access errors and continue to call embedding client
             pass
-        return vec
+    except Exception:
+        # swallow import/setup errors and continue
+        pass
+
+    # Call embeddings client (respect monkeypatches that expect zero-arg)
+    try:
+        client = get_embeddings_client()
+        vec = client.embed_query(text)
     except Exception:
         return _fallback_embedding(text)
+
+    # Try to cache the result, but don't fail if caching errors occur
+    try:
+        import json
+        from sqlmodel import Session
+        from backend.utils.database import engine
+
+        with Session(engine) as session:
+            session.add(EmbeddingCache(key=key, vector_json=json.dumps(vec)))
+            session.commit()
+    except Exception:
+        pass
+
+    return vec

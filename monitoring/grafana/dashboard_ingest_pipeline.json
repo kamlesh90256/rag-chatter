@@ -1,0 +1,33 @@
+{
+  "panels": [
+    {
+      "title": "Ingest Duration (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(ingest_duration_seconds_bucket[5m])) by (le))" }
+      ]
+    },
+    {
+      "title": "Embedding Duration (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(embedding_duration_seconds_bucket[5m])) by (le))" }
+      ]
+    },
+    {
+      "title": "Queue Length",
+      "type": "stat",
+      "targets": [
+        { "expr": "celery_queue_length" }
+      ]
+    },
+    {
+      "title": "Active Workers",
+      "type": "stat",
+      "targets": [
+        { "expr": "celery_active_workers" }
+      ]
+    }
+  ],
+  "title": "Ingestion Pipeline"
+}

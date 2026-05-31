@@ -73,6 +73,8 @@ def get_graph(api_key: str | None = None):
                 "creator": chunk.get("metadata", {}).get("creator", "Unknown creator"),
                 "chunk_id": chunk.get("metadata", {}).get("chunk_id"),
                 "url": chunk.get("metadata", {}).get("url"),
+                "timestamp_start": chunk.get("metadata", {}).get("timestamp_start"),
+                "timestamp_end": chunk.get("metadata", {}).get("timestamp_end"),
             }
             for chunk in state.get("retrieved_chunks", [])
         ]
@@ -161,3 +163,26 @@ def run_workflow(
         citations=state.get("citations", []),
         context=state.get("context", ""),
     )
+
+
+def retrieve_context(question: str, thread_id: str, video_ids: list[str] | None = None) -> dict:
+    """Run retrieval and build context/citations without invoking the LLM.
+
+    Returns a dict with keys: memory, retrieved_chunks, context, citations
+    """
+    settings = get_settings()
+    memory = _load_conversation_memory(thread_id, video_ids)
+    retriever = RetrieverService()
+    retrieved_chunks = retriever.retrieve(question, video_ids=video_ids, k=settings.retriever_k)
+    context = build_context(retrieved_chunks)
+    citations = [
+        {
+            "video_id": chunk.get("metadata", {}).get("video_id"),
+            "title": chunk.get("metadata", {}).get("title", "Unknown title"),
+            "creator": chunk.get("metadata", {}).get("creator", "Unknown creator"),
+            "chunk_id": chunk.get("metadata", {}).get("chunk_id"),
+            "url": chunk.get("metadata", {}).get("url"),
+        }
+        for chunk in retrieved_chunks
+    ]
+    return {"memory": memory, "retrieved_chunks": retrieved_chunks, "context": context, "citations": citations}

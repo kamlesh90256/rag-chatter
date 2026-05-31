@@ -27,7 +27,8 @@ export function SourcePanel({ citations, sources, memory }: { citations: ChatCit
             {sources.length ? sources.map((source, index) => (
               <div key={index} className="rounded-xl border border-white/10 bg-black/20 p-3">
                 <p className="text-foreground">{String(source.metadata.title ?? "Unknown")}</p>
-                <p className="text-mutedForeground">Chunk {String(source.metadata.chunk_id ?? index + 1)}</p>
+                <p className="text-mutedForeground">Chunk {String(source.metadata.chunk_id ?? index + 1)} {source.metadata.timestamp_start ? `• ${new Date((source.metadata.timestamp_start as number) * 1000).toISOString().substr(14,5)}` : ""}</p>
+                {source.metadata.url ? <a href={`${source.metadata.url}${String(source.metadata.url).includes("?")?"&":"?"}${source.metadata.timestamp_start?`t=${Math.floor(source.metadata.timestamp_start as number)}`:""}`} target="_blank" rel="noreferrer" className="text-xs text-sky-300">Open source</a> : null}
                 <p className="mt-2 max-h-24 overflow-hidden text-mutedForeground">{source.text}</p>
               </div>
             )) : <p className="text-mutedForeground">No sources loaded.</p>}

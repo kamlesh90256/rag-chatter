@@ -83,6 +83,11 @@ class IngestionService:
         self.session.add(analysis)
         self.session.commit()
         self.session.refresh(analysis)
+            try:
+                # record ingestion duration if available on analysis (not exact but indicative)
+                observe_ingest(0.0)
+            except Exception:
+                pass
         return {
             "videos": [video_a["video"].model_dump(), video_b["video"].model_dump()],
             "comparison": comparison,

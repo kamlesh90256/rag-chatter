@@ -7,6 +7,7 @@ import { ChatPanel } from "@/components/chat-panel";
 import { ComparisonMetrics } from "@/components/comparison-metrics";
 import { ConversationHistory } from "@/components/conversation-history";
 import { HookAnalysisCard } from "@/components/hook-analysis";
+import { AnalyticsPanel } from "@/components/analytics-panel";
 import { IngestForm } from "@/components/ingest-form";
 import { SourcePanel } from "@/components/source-panel";
 import { VideoCard } from "@/components/video-card";
@@ -37,7 +38,31 @@ export default function Page() {
 
   const handleIngest = async (youtubeUrl: string, instagramUrl: string) => {
     const result = await ingest.mutateAsync({ youtube_url: youtubeUrl, instagram_url: instagramUrl });
-    setVideos(result.videos);
+    // If backend returned a job_id, poll for completion
+    if ((result as any).job_id) {
+      const jobId = (result as any).job_id;
+      // poll status
+      const { getIngestStatus } = await import("@/services/api");
+      let attempts = 0;
+      while (attempts < 60) {
+        // eslint-disable-next-line no-await-in-loop
+        const status = await getIngestStatus(jobId);
+        if (status.state === "SUCCESS") {
+          const payload = status.status || {};
+          setVideos(payload.videos ?? []);
+          break;
+        }
+        if (status.state === "FAILURE" || status.state === "REVOKED") {
+          // show error via ingest mutation error
+          throw new Error("Ingestion job failed: " + JSON.stringify(status.status));
+        }
+        attempts += 1;
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    } else {
+      setVideos(result.videos);
+    }
   };
 
   return (
@@ -87,6 +112,7 @@ export default function Page() {
             engagementRate={ingest.data.comparison.engagement_rate}
             table={ingest.data.comparison.table}
           />
+          <AnalyticsPanel videos={ingest.data.videos} />
           <div className="grid gap-6 xl:grid-cols-2">
             <HookAnalysisCard label="Video A hook analysis" analysis={ingest.data.hook_analysis.video_a} />
             <HookAnalysisCard label="Video B hook analysis" analysis={ingest.data.hook_analysis.video_b} />
@@ -112,6 +138,10 @@ export default function Page() {
           answer={chat.streamingAnswer}
           citations={chat.citations}
           error={chat.error}
+          connectionStatus={(chat as any).connectionStatus}
+          isThinking={(chat as any).isThinking}
+          onRetry={(chat as any).retry}
+        />
         />
         <SourcePanel
           citations={chat.citations}
