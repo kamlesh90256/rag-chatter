@@ -74,14 +74,8 @@ def rebuild_vectorstore(
         metadatas.append(meta)
         ids.append(c.vector_id or f"{c.video_id}-{c.chunk_id}")
 
-    # Compute embeddings (will fallback to deterministic embeddings if OpenAI not configured)
-    embeddings = []
-    if texts:
-        try:
-            embeddings = embed_texts(texts)
-        except Exception:
-            logger.exception("Embeddings failed during rebuild; proceeding with fallback embeddings where possible")
-            embeddings = []
+    # Compute embeddings (embed_texts provides deterministic fallbacks when OpenAI is unavailable)
+    embeddings: list[list[float]] = embed_texts(texts) if texts else []
 
     # Upsert into Chroma only if embeddings match
     upserted = 0
@@ -92,12 +86,12 @@ def rebuild_vectorstore(
         except Exception:
             logger.exception("Failed to upsert chunks into chroma during rebuild")
     else:
-        # If embeddings aren't available, create collection entries without embeddings (if supported)
-        try:
-            repo.upsert_chunks(texts=texts, embeddings=[[] for _ in texts], metadatas=metadatas, ids=ids)
-            upserted = len(texts)
-        except Exception:
-            logger.exception("Failed to upsert chunks without embeddings; collection may remain empty")
+        # Embeddings missing or count mismatch — skip upsert to avoid chroma errors.
+        logger.warning(
+            "Skipping upsert: embeddings missing or length mismatch (expected %d, got %d)",
+            len(texts),
+            len(embeddings) if embeddings is not None else 0,
+        )
 
     resp: dict[str, Any] = {"upserted": upserted, "total_chunks": len(texts)}
     if generated_secret:
