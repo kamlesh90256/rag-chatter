@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import hashlib
 from typing import Any
 
@@ -94,7 +95,11 @@ class IngestionService:
 
     def _create_placeholder_video(self, url: str, platform: str, error: str | None = None) -> dict[str, Any]:
         # Create a minimal Video record to ensure downstream flows have an ID to reference.
-        metadata = extract_metadata(url, platform) if url else {}
+        # Be defensive: metadata extraction may fail (eg. yt-dlp sign-in required).
+        try:
+            metadata = extract_metadata(url, platform) if url else {}
+        except Exception:  # pragma: no cover - best-effort fallback
+            metadata = {"title": "Unavailable video", "creator": "Unknown", "raw": {}}
         video_id = _canonical_video_id(platform, url)
         video = Video(
             id=video_id,
