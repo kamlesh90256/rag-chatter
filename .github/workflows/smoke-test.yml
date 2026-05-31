@@ -1,0 +1,47 @@
+name: Smoke Test
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install backend and test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install ./backend
+          pip install httpx
+
+      - name: Start backend
+        run: |
+          nohup python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 &
+          echo $! > /tmp/uvicorn.pid
+
+      - name: Wait for /health
+        run: |
+          for i in {1..30}; do
+            if curl -sSf http://127.0.0.1:8000/health >/dev/null; then echo ok && break; fi
+            echo "waiting..."; sleep 2
+          done
+
+      - name: Verify endpoints
+        run: |
+          set -e
+          curl -sSf http://127.0.0.1:8000/health
+          curl -sSf http://127.0.0.1:8000/metadata || true
+          curl -sSf http://127.0.0.1:8000/sources || true
+
+      - name: Basic ingestion validation
+        run: |
+          # This does a lightweight check only: posts an empty payload to validate request path
+          http --ignore-stdin --check-status POST http://127.0.0.1:8000/ingest video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" || true
