@@ -1,3 +1,31 @@
+# Deployment Automation
+
+This document describes the Continuous Deployment workflow and required secrets for automatic deployment to Vercel (frontend) and Railway (backend).
+
+Files added
+- `.github/workflows/deployment.yml` — triggers when `Backend CI` and `Frontend CI` complete successfully and performs automated deployments.
+
+How it triggers
+- The deployment workflow uses `workflow_run` to detect when the `Backend CI` and `Frontend CI` workflows complete. It verifies their latest run conclusions on `main` before proceeding.
+
+Secrets required for deployment
+- `VERCEL_TOKEN` — Vercel personal token with project deploy permission.
+- `VERCEL_ORG_ID` — Vercel organization ID.
+- `VERCEL_PROJECT_ID` — Vercel project ID for the frontend.
+- `RAILWAY_API_KEY` — Railway API key with deploy permissions.
+- `RAILWAY_PROJECT_ID` — Railway project id where backend service lives.
+- `RAILWAY_SERVICE_ID` — Railway service id for the backend service to deploy.
+- `FRONTEND_URL` — Public URL of the frontend (used for verification). Example: `https://your-app.vercel.app`.
+- `BACKEND_URL` — Public base URL of the backend (used for verification). Example: `https://api.yourdomain.com`.
+
+Notes about Railway deployment
+- The workflow installs the Railway CLI and runs `railway up` against the configured project and service. Configure your Railway project with the necessary environment variables (e.g., `OPENAI_API_KEY`, `DATABASE_URL`, `REDIS_URL`, etc.) in Railway prior to automatic deploy.
+
+Verification
+- After deployments, the workflow attempts to hit `FRONTEND_URL` and `BACKEND_URL/health` up to 20 times, waiting for availability.
+
+Security
+- Store all tokens in GitHub Secrets (Settings → Secrets → Actions). Do not print secret values in workflow logs.
 # Deployment Guide — Creator Video Intelligence RAG Platform
 
 This document describes how to deploy the frontend to Vercel and the backend to Railway (recommended). It contains exact commands, CI workflows, environment variables and smoke-test checks to make the project demo-ready.
