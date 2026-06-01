@@ -45,7 +45,7 @@ Set these in Vercel (frontend) and Railway (backend) environments.
 - `CELERY_BROKER_URL` — usually same as `REDIS_URL`
 - `QDRANT_URL` — if using a managed Qdrant instance (optional)
 - `QDRANT_API_KEY` — Qdrant API key (if required)
-- `CORS_ORIGINS` — JSON list of frontend origins, e.g. `['https://your-frontend.vercel.app']`
+- `CORS_ORIGINS` — frontend origins as a comma-separated list or JSON list, e.g. `https://your-frontend.vercel.app` or `['https://your-frontend.vercel.app']`
 - `NEXT_PUBLIC_API_BASE_URL` — public URL for the backend API (frontend runtime)
 - `ADMIN_SECRET` — secret for admin endpoints
 

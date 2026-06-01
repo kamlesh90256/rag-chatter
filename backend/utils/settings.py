@@ -1,9 +1,27 @@
 from functools import lru_cache
 from pathlib import Path
-import os
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import json
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+
+
+class _SettingsEnvSource(EnvSettingsSource):
+    def prepare_field_value(self, field_name, field, value, value_is_complex):  # type: ignore[override]
+        if field_name == "cors_origins" and isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                try:
+                    parsed = json.loads(stripped)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, list):
+                    return [str(item) for item in parsed if str(item).strip()]
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+        return super().prepare_field_value(field_name, field, value, value_is_complex)
 
 
 class Settings(BaseSettings):
@@ -22,43 +40,9 @@ class Settings(BaseSettings):
     chroma_persist_dir: Path = Field(default=Path("./data/chroma"))
     rate_limit_per_minute: int = 60
     request_timeout_seconds: int = 120
-    cors_origins: list[str] = Field(
-        default_factory=lambda: [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3001",
-        ]
-    )
-
-    @field_validator("cors_origins", mode="before")
-    def _parse_cors_origins(cls, v):
-        # Accept an env string (JSON list or comma-separated) or an empty value.
-        if v is None:
-            return v
-        if isinstance(v, str):
-            s = v.strip()
-            if s == "":
-                return [
-                    "http://localhost:3000",
-                    "http://127.0.0.1:3000",
-                    "http://localhost:3001",
-                    "http://127.0.0.1:3001",
-                ]
-            # try json
-            try:
-                import json
-
-                parsed = json.loads(s)
-                if isinstance(parsed, list):
-                    return parsed
-            except Exception:
-                # fallback to comma-split
-                return [part.strip() for part in s.split(",") if part.strip()]
-        return v
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     max_chat_history_turns: int = 12
     chunk_size: int = 800
-    chunk_size: int = 1000
     chunk_overlap: int = 200
     # Vector DB selection
     use_qdrant: bool = False
@@ -67,11 +51,25 @@ class Settings(BaseSettings):
     # Background worker / queue
     redis_url: str | None = None
     celery_broker_url: str | None = None
-    # Embedding model
-    embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536
     retriever_k: int = 6
     admin_secret: str | None = None
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        return (
+            init_settings,
+            _SettingsEnvSource(settings_cls),
+            dotenv_settings,
+            file_secret_settings,
+        )
 
     @property
     def sqlite_path(self) -> Path | None:
@@ -82,25 +80,4 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    # Some CI environments set an empty string for CORS_ORIGINS which
-    # pydantic tries to json-decode and fails. If the env var is present
-    # but empty, remove it so Settings uses the default value.
-    try:
-        val = os.environ.get("CORS_ORIGINS")
-        if val is not None:
-            s = val.strip()
-            if s == "":
-                # remove empty
-                del os.environ["CORS_ORIGINS"]
-            else:
-                # If it's not a JSON list, normalize into a JSON array so
-                # pydantic's EnvSettingsSource (which json.loads) will succeed.
-                if not s.startswith("["):
-                    # split on commas to support simple comma-separated values
-                    parts = [p.strip() for p in s.split(",") if p.strip()]
-                    import json
-
-                    os.environ["CORS_ORIGINS"] = json.dumps(parts)
-    except Exception:
-        pass
     return Settings()

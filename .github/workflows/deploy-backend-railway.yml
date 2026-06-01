@@ -24,15 +24,16 @@ jobs:
 
       - name: Deploy to Railway
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_KEY: ${{ secrets.RAILWAY_API_KEY }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
-          if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "RAILWAY_TOKEN not set in secrets; skipping CI deploy."
+          if [ -z "$RAILWAY_API_KEY" ]; then
+            echo "RAILWAY_API_KEY not set in secrets; skipping CI deploy."
             exit 0
           fi
+          railway login --apiKey "$RAILWAY_API_KEY"
           if [ -n "$RAILWAY_PROJECT_ID" ]; then
             railway link --project "$RAILWAY_PROJECT_ID" || true
           fi

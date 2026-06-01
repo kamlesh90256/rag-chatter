@@ -26,14 +26,6 @@ settings = get_settings()
 configure_logging()
 logger = logging.getLogger("rag_platform")
 
-# If `CORS` origins were passed via env as a JSON string, coerce to list
-if isinstance(settings.cors_origins, str):
-    try:
-        parsed = json.loads(settings.cors_origins)
-        settings.cors_origins = parsed if isinstance(parsed, list) else [parsed]
-    except Exception:
-        settings.cors_origins = [settings.cors_origins]
-
 app = FastAPI(title=settings.app_name, version="0.1.0")
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(

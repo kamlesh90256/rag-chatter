@@ -55,7 +55,7 @@ jobs:
         env:
           RAILWAY_API_KEY: ${{ secrets.RAILWAY_API_KEY }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-          RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -e
           # Install railway CLI
@@ -63,7 +63,7 @@ jobs:
           export PATH="$HOME/.railway/bin:$PATH"
           railway login --apiKey "$RAILWAY_API_KEY"
           # Deploy the service (assumes a service configured in Railway)
-          railway up --project "$RAILWAY_PROJECT_ID" --service "$RAILWAY_SERVICE" --yes || true
+          railway up --project "$RAILWAY_PROJECT_ID" --service "$RAILWAY_SERVICE_ID" --yes
 
       - name: Verify deployments
         env:
