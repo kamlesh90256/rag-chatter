@@ -47,7 +47,7 @@ dev = [
 package-dir = {"" = "."}
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
