@@ -94,36 +94,82 @@ class IngestionService:
             "analysis_id": analysis.id,
         }
 
-    def _create_placeholder_video(self, url: str, platform: str, error: str | None = None) -> dict[str, Any]:
-        # Create a minimal Video record to ensure downstream flows have an ID to reference.
-        # Be defensive: metadata extraction may fail (eg. yt-dlp sign-in required).
-        try:
-            metadata = extract_metadata(url, platform) if url else {}
-        except Exception:  # pragma: no cover - best-effort fallback
-            metadata = {"title": "Unavailable video", "creator": "Unknown", "raw": {}}
-        video_id = _canonical_video_id(platform, url)
-        video = Video(
-            id=video_id,
-            platform=platform,
-            url=url,
-            title=metadata.get("title", "Unavailable video"),
-            creator=metadata.get("creator", "Unknown"),
-            views=0,
-            likes=0,
-            comments=0,
-            follower_count=None,
-        )
-        video.set_metadata(metadata.get("raw") or {})
-        video.error_message = error
-        self.session.add(video)
+    def _create_placeholder_video(
+    self,
+    url: str,
+    platform: str,
+    error: str | None = None,
+) -> dict[str, Any]:
+    try:
+        metadata = extract_metadata(url, platform) if url else {}
+    except Exception:
+        metadata = {
+            "title": "Unavailable video",
+            "creator": "Unknown",
+            "raw": {},
+        }
+
+    video_id = _canonical_video_id(platform, url)
+
+    # FIX: avoid duplicate inserts
+    existing = self.session.get(Video, video_id)
+
+    if existing:
+        existing.error_message = error
+        self.session.add(existing)
         self.session.commit()
-        self.session.refresh(video)
-        # create an empty transcript record to keep schema expectations
-        transcript = Transcript(video_id=video.id, source_type="unavailable", language="en", text="", is_fallback=True)
-        self.session.add(transcript)
-        self.session.commit()
-        self.session.refresh(transcript)
-        return {"video": video, "transcript": transcript, "chunks": [], "hook_analysis": {}}
+        self.session.refresh(existing)
+
+        return {
+            "video": existing,
+            "transcript": Transcript(
+                video_id=existing.id,
+                source_type="unavailable",
+                language="en",
+                text="",
+                is_fallback=True,
+            ),
+            "chunks": [],
+            "hook_analysis": {},
+        }
+
+    video = Video(
+        id=video_id,
+        platform=platform,
+        url=url,
+        title=metadata.get("title", "Unavailable video"),
+        creator=metadata.get("creator", "Unknown"),
+        views=0,
+        likes=0,
+        comments=0,
+        follower_count=None,
+    )
+
+    video.set_metadata(metadata.get("raw") or {})
+    video.error_message = error
+
+    self.session.add(video)
+    self.session.commit()
+    self.session.refresh(video)
+
+    transcript = Transcript(
+        video_id=video.id,
+        source_type="unavailable",
+        language="en",
+        text="",
+        is_fallback=True,
+    )
+
+    self.session.add(transcript)
+    self.session.commit()
+    self.session.refresh(transcript)
+
+    return {
+        "video": video,
+        "transcript": transcript,
+        "chunks": [],
+        "hook_analysis": {},
+    }
 
     def ingest_single(self, url: str) -> dict[str, Any]:
         from backend.ingest.validator import validate_video_url
